@@ -18,6 +18,8 @@
 
 #include "logging.h"
 
+#define NT_CURRENT_PROCESS ((HANDLE)(-1))
+
 // When a new child process is spawned, the parent must call
 // CsrClientCallServer with API number BasepCreateProcess to notify
 // the csrss subsystem of the new process. However, this seems to
@@ -32,7 +34,7 @@ BOOL NotifyCsrssParent(HANDLE hProcess, HANDLE hThread) {
   }
 
   BOOL bIsWow64;
-  if (!IsWow64Process(GetCurrentProcess(), &bIsWow64)) {
+  if (!IsWow64Process(NT_CURRENT_PROCESS, &bIsWow64)) {
     LOG("FORKLIB: IsWow64Process failed!\n");
     return FALSE;
   }
@@ -120,7 +122,7 @@ BOOL NotifyCsrssParent(HANDLE hProcess, HANDLE hThread) {
 // result our job is much easier.
 BOOL ConnectCsrChild(const CsrRegion& csr_region) {
   BOOL bIsWow64;
-  if (!IsWow64Process(GetCurrentProcess(), &bIsWow64)) {
+  if (!IsWow64Process(NT_CURRENT_PROCESS, &bIsWow64)) {
     LOG("FORKLIB: IsWow64Process failed!\n");
     return FALSE;
   }
@@ -146,7 +148,7 @@ BOOL ConnectCsrChild(const CsrRegion& csr_region) {
 
   DWORD session_id;
   wchar_t ObjectDirectory[100];
-  ProcessIdToSessionId(GetProcessId(GetCurrentProcess()), &session_id);
+  ProcessIdToSessionId(GetProcessId(NT_CURRENT_PROCESS), &session_id);
   swprintf(ObjectDirectory, 100, L"\\Sessions\\%d\\Windows", session_id);
   LOG("FORKLIB: Session_id: %d\n", session_id);
 
@@ -223,7 +225,7 @@ extern "C" DWORD fork(_Out_ LPPROCESS_INFORMATION lpProcessInformation) {
   }
 
   LOG("FORKLIB: Before the fork, my pid is %d\n",
-      GetProcessId(GetCurrentProcess()));
+      GetProcessId(NT_CURRENT_PROCESS));
 
   PS_CREATE_INFO procInfo;
   RtlZeroMemory(&procInfo, sizeof(procInfo));

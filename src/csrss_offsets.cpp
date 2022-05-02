@@ -12,6 +12,7 @@
 #define CSR_REGION_END_SYM_X64 "ntdll!CsrHeap"
 #define CSR_REGION_END_SYM_X86 "ntdll!CsrInitOnceDone"
 #define RTL_CUR_DIR_REF_SYM "ntdll!RtlpCurDirRef"
+#define NT_CURRENT_PROCESS ((HANDLE)(-1))
 
 static bool GetCsrRegionInfoNative(CsrRegion* region_out_ptr);
 static bool GetCsrRegionInfoWow64(CsrRegion* region_out_ptr);
@@ -40,7 +41,7 @@ bool GetCsrRegionInfo(CsrRegion* region_out_ptr) {
 
 #ifndef _WIN64
   BOOL bIsWow64;
-  if (!IsWow64Process(GetCurrentProcess(), &bIsWow64)) {
+  if (!IsWow64Process(NT_CURRENT_PROCESS, &bIsWow64)) {
     LOG("IsWow64Process failed!\n");
     return FALSE;
   }
@@ -54,10 +55,9 @@ bool GetCsrRegionInfo(CsrRegion* region_out_ptr) {
 }
 
 static bool GetCsrRegionInfoNative(CsrRegion* region_out_ptr) {
-  const HANDLE hProcess = ::GetCurrentProcess();
   const auto mod_base_addr =
       reinterpret_cast<DWORD64>(::GetModuleHandleA(CSR_REGION_MOD_NAME));
-  if (!::SymLoadModuleEx(hProcess,             // target process
+  if (!::SymLoadModuleEx(NT_CURRENT_PROCESS,   // target process
                          NULL,                 // handle to image - not used
                          CSR_REGION_MOD_NAME,  // name of image file
                          nullptr,              // name of module - not required
@@ -76,9 +76,9 @@ static bool GetCsrRegionInfoNative(CsrRegion* region_out_ptr) {
   p_sym_info->MaxNameLen = MAX_SYM_NAME;
 
   // CsrServerApiRoutine
-  if (!::SymFromName(hProcess, CSR_REGION_START_SYM, p_sym_info)) {
+  if (!::SymFromName(NT_CURRENT_PROCESS, CSR_REGION_START_SYM, p_sym_info)) {
     LOG("SymFromName failed, 0x%X\n", ::GetLastError());
-    ::SymUnloadModule64(hProcess, mod_base_addr);
+    ::SymUnloadModule64(NT_CURRENT_PROCESS, mod_base_addr);
     return false;
   }
   LOG("ntdll!CsrServerApiRoutine is at 0x%I64X\n", p_sym_info->Address);
@@ -86,12 +86,12 @@ static bool GetCsrRegionInfoNative(CsrRegion* region_out_ptr) {
 
   // CsrHeap / CsrInitOnceDone
 #ifdef _WIN64
-  if (!::SymFromName(hProcess, CSR_REGION_END_SYM_X64, p_sym_info)) {
+  if (!::SymFromName(NT_CURRENT_PROCESS, CSR_REGION_END_SYM_X64, p_sym_info)) {
 #elif _WIN32
-  if (!::SymFromName(hProcess, CSR_REGION_END_SYM_X86, p_sym_info)) {
+  if (!::SymFromName(NT_CURRENT_PROCESS, CSR_REGION_END_SYM_X86, p_sym_info)) {
 #endif
     LOG("SymFromName failed, 0x%X\n", ::GetLastError());
-    ::SymUnloadModule64(hProcess, mod_base_addr);
+    ::SymUnloadModule64(NT_CURRENT_PROCESS, mod_base_addr);
     return false;
   }
   LOG("ntdll!CsrHeap is at 0x%I64X\n", p_sym_info->Address);
@@ -99,15 +99,15 @@ static bool GetCsrRegionInfoNative(CsrRegion* region_out_ptr) {
       p_sym_info->Address + p_sym_info->Size - region_out_ptr->data_offset;
 
   // RtlpCurDirRef
-  if (!::SymFromName(hProcess, RTL_CUR_DIR_REF_SYM, p_sym_info)) {
+  if (!::SymFromName(NT_CURRENT_PROCESS, RTL_CUR_DIR_REF_SYM, p_sym_info)) {
     LOG("SymFromName failed, 0x%X\n", ::GetLastError());
-    ::SymUnloadModule64(hProcess, mod_base_addr);
+    ::SymUnloadModule64(NT_CURRENT_PROCESS, mod_base_addr);
     return false;
   }
   LOG("%s is at 0x%I64X\n", RTL_CUR_DIR_REF_SYM, p_sym_info->Address);
   region_out_ptr->cur_dir_ref_offset = p_sym_info->Address;
 
-  ::SymUnloadModule64(hProcess, mod_base_addr);
+  ::SymUnloadModule64(NT_CURRENT_PROCESS, mod_base_addr);
   return true;
 }
 
@@ -125,12 +125,15 @@ static bool GetCsrRegionInfoWow64(CsrRegion* region_out_ptr) {
     return false;
   }
 
-  const HANDLE hProcess = ::GetCurrentProcess();
   const auto mod_base_addr = ::GetModuleHandle64(L"ntdll.dll");
+  auto ntdllPathLen = ExpandEnvironmentStringsA("%WinDir%\\System32\\ntdll.dll", nullptr, 0);
+  LPSTR ntdllPath = (LPSTR)_malloca(ntdllPathLen+1);
+  auto ntdllPathLen = ExpandEnvironmentStringsA("%WinDir%\\System32\\ntdll.dll", ntdllPath, ntdllPathLen);
+  ntdllPath[ntdllPathLen] = 0;
   if (!::SymLoadModuleEx(
-          hProcess,                            // target process
+          NT_CURRENT_PROCESS,                  // target process
           NULL,                                // handle to image - not used
-          "C:\\Windows\\System32\\ntdll.dll",  // name of image file
+          ntdllPath,                           // name of image file
           nullptr,                             // name of module - not required
           mod_base_addr,                       // base address - not required
           0,                                   // size of image - not required
@@ -149,9 +152,9 @@ static bool GetCsrRegionInfoWow64(CsrRegion* region_out_ptr) {
   p_sym_info->MaxNameLen = MAX_SYM_NAME;
 
   // CsrServerApiRoutine
-  if (!::SymFromName(hProcess, CSR_REGION_START_SYM, p_sym_info)) {
+  if (!::SymFromName(NT_CURRENT_PROCESS, CSR_REGION_START_SYM, p_sym_info)) {
     LOG("SymFromName failed, 0x%X\n", ::GetLastError());
-    ::SymUnloadModule64(hProcess, mod_base_addr);
+    ::SymUnloadModule64(NT_CURRENT_PROCESS, mod_base_addr);
     return false;
   }
   region_out_ptr->data_offset_wow64 = p_sym_info->Address;
@@ -159,9 +162,9 @@ static bool GetCsrRegionInfoWow64(CsrRegion* region_out_ptr) {
       region_out_ptr->data_offset_wow64);
 
   // CsrHeap
-  if (!::SymFromName(hProcess, CSR_REGION_END_SYM_X64, p_sym_info)) {
+  if (!::SymFromName(NT_CURRENT_PROCESS, CSR_REGION_END_SYM_X64, p_sym_info)) {
     LOG("SymFromName failed, 0x%X\n", ::GetLastError());
-    ::SymUnloadModule64(hProcess, mod_base_addr);
+    ::SymUnloadModule64(NT_CURRENT_PROCESS, mod_base_addr);
     return false;
   }
   LOG("%s is at 0x%I64X\n", CSR_REGION_END_SYM_X64, p_sym_info->Address);
@@ -169,15 +172,15 @@ static bool GetCsrRegionInfoWow64(CsrRegion* region_out_ptr) {
                                     region_out_ptr->data_offset_wow64;
 
   // RtlpCurDirRef
-  if (!::SymFromName(hProcess, RTL_CUR_DIR_REF_SYM, p_sym_info)) {
+  if (!::SymFromName(NT_CURRENT_PROCESS, RTL_CUR_DIR_REF_SYM, p_sym_info)) {
     LOG("SymFromName failed, 0x%X\n", ::GetLastError());
-    ::SymUnloadModule64(hProcess, mod_base_addr);
+    ::SymUnloadModule64(NT_CURRENT_PROCESS, mod_base_addr);
     return false;
   }
   LOG("%s is at 0x%I64X\n", RTL_CUR_DIR_REF_SYM, p_sym_info->Address);
   region_out_ptr->cur_dir_ref_offset_wow64 = p_sym_info->Address;
 
-  ::SymUnloadModule64(hProcess, mod_base_addr);
+  ::SymUnloadModule64(NT_CURRENT_PROCESS, mod_base_addr);
   return true;
 }
 

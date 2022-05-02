@@ -4,6 +4,8 @@
 
 #include "logging.h"
 
+#define NT_CURRENT_PROCESS ((HANDLE)(-1))
+
 static bool InitializeSymbols();
 static void CleanupSymbols();
 
@@ -25,7 +27,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call,
 }
 
 static bool InitializeSymbols() {
-  if (!::SymInitialize(::GetCurrentProcess(), nullptr, FALSE)) {
+  if (!::SymInitialize(NT_CURRENT_PROCESS, nullptr, FALSE)) {
     LOG("SymInitialize failed, 0x%X\n", ::GetLastError());
     return false;
   }
@@ -39,4 +41,4 @@ static bool InitializeSymbols() {
   return true;
 }
 
-static void CleanupSymbols() { ::SymCleanup(::GetCurrentProcess()); }
+static void CleanupSymbols() { ::SymCleanup(NT_CURRENT_PROCESS); }

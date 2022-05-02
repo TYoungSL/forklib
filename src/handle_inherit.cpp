@@ -7,6 +7,8 @@
 #include "fork.h"
 #include "logging.h"
 
+#define NT_CURRENT_PROCESS ((HANDLE)(-1))
+
 // This method simply iterates through all of the handles that are opened by the
 // current process, and call a callback on each one. This can also be used for
 // closing any dangling or leaked file handles to the input binary that we are
@@ -20,7 +22,6 @@ extern "C" BOOL EnumerateProcessHandles(
   NTSTATUS status;
   PSYSTEM_HANDLE_INFORMATION_EX handleInfo;
   ULONG handleInfoSize = 0x10000;
-  HANDLE processHandle = GetCurrentProcess();
   ULONG i;
 
   handleInfo = (PSYSTEM_HANDLE_INFORMATION_EX)malloc(handleInfoSize);

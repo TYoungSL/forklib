@@ -64,7 +64,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 {
 	if (DLL_PROCESS_ATTACH == fdwReason)
 	{
-		IsWow64Process(GetCurrentProcess(), &g_isWow64);
+		IsWow64Process(NT_CURRENT_PROCESS, &g_isWow64);
 		g_heap = GetProcessHeap();
 	}
     return TRUE;
